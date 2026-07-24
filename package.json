@@ -31,7 +31,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/dynilath/dice-rs"
+    "url": "https://github.com/dynilath/dicelet.git"
   },
   "keywords": [
     "dice",

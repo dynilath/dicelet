@@ -7,4 +7,4 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 authors = ["dynilath <dynilath@qq.com>"]
-repository = "https://github.com/dynilath/dice-rs"
+repository = "https://github.com/dynilath/dicelet"
