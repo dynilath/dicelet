@@ -6,7 +6,7 @@
 //! ## Usage (JavaScript)
 //!
 //! ```javascript
-//! import { roll, parse } from '@dynilath/dicelet/wasm';
+//! import { roll, parse } from 'dicelet/wasm';
 //!
 //! const result = roll('4d6k3');
 //! console.log(result.full); // e.g. "[5 + 3 + 1* + 6] = 14"

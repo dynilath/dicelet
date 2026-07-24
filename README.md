@@ -19,7 +19,7 @@ Dicelet 骰子表达式解析与求值引擎，使用 Rust 实现并通过 napi-
 ### Node.js
 
 ```bash
-npm install @dynilath/dicelet
+npm install dicelet
 ```
 
 ### 浏览器 (WASM)
@@ -35,7 +35,7 @@ wasm-pack build --target web --release --out-dir pkg
 ### Node.js
 
 ```typescript
-import { roll, parse } from '@dynilath/dicelet';
+import { roll, parse } from 'dicelet';
 
 // 基础骰子
 const result = roll('4d6k3');
