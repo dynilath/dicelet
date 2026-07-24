@@ -1,0 +1,19 @@
+[package]
+name = "dicelet-napi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Node.js bindings for dicelet-core via napi-rs"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+dicelet-core = { path = "../dicelet-core" }
+napi = { version = "2", features = ["napi8"] }
+napi-derive = "2"
+
+[build-dependencies]
+napi-build = "2"

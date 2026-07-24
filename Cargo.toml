@@ -1,0 +1,10 @@
+[workspace]
+members = ["crates/dicelet-core", "crates/dicelet-napi", "crates/dicelet-wasm"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["dynilath <dynilath@qq.com>"]
+repository = "https://github.com/dynilath/dice-rs"

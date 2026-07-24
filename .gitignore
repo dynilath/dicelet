@@ -1,0 +1,25 @@
+# Rust
+/target
+**/*.rs.bk
+
+# Node
+node_modules/
+*.log
+
+# napi-rs build artifacts
+*.node
+!crates/dicelet-napi/test.js
+
+# WASM build artifacts
+crates/dicelet-wasm/pkg/
+crates/dicelet-wasm/target/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

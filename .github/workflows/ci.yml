@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run core tests
+        run: cargo test --package dicelet-core
+
+  build-native:
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - host: windows-latest
+            target: x86_64-pc-windows-msvc
+            build: |
+              cd crates/dicelet-napi
+              npx napi build --platform --release
+            node-index: dicelet.win32-x64-msvc.node
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            build: |
+              cd crates/dicelet-napi
+              npx napi build --platform --release
+            node-index: dicelet.linux-x64-gnu.node
+          - host: macos-latest
+            target: x86_64-apple-darwin
+            build: |
+              cd crates/dicelet-napi
+              npx napi build --platform --release
+            node-index: dicelet.darwin-x64.node
+          - host: macos-latest
+            target: aarch64-apple-darwin
+            build: |
+              cd crates/dicelet-napi
+              npx napi build --platform --release
+            node-index: dicelet.darwin-arm64.node
+
+    name: Build Native ${{ matrix.settings.target }}
+    runs-on: ${{ matrix.settings.host }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.settings.target }}
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: crates/dicelet-napi
+
+      - name: Build
+        run: ${{ matrix.settings.build }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.settings.node-index }}
+          path: crates/dicelet-napi/${{ matrix.settings.node-index }}
+
+  build-wasm:
+    name: Build WASM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack
+
+      - name: Build WASM
+        run: |
+          cd crates/dicelet-wasm
+          wasm-pack build --target web --release --out-dir pkg
+
+      - name: Upload WASM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dicelet-wasm
+          path: crates/dicelet-wasm/pkg/
