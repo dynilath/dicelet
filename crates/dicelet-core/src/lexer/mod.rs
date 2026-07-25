@@ -58,6 +58,19 @@ impl<'a> Lexer<'a> {
                 b'#' => self.consume_single(TokenKind::Sharp, start),
                 b'd' | b'D' => self.consume_single(TokenKind::Dice, start),
                 b'k' | b'K' => self.consume_keyword_k(start),
+                b'b' | b'B' => self.consume_single(TokenKind::Bonus, start),
+                b'>' => self.consume_comparison(start, TokenKind::GreaterEqual, TokenKind::GreaterThan),
+                b'<' => self.consume_comparison(start, TokenKind::LessEqual, TokenKind::LessThan),
+                b'!' => {
+                    if self.peek_next() == Some(b'=') {
+                        let text = &self.source[start..start + 2];
+                        self.pos += 2;
+                        Token::new(TokenKind::NotEqual, text.to_string(), start, start + 2)
+                    } else {
+                        // Unknown character: stop tokenizing here
+                        break;
+                    }
+                }
                 b'0'..=b'9' | b'.' => self.consume_number(start),
                 _ => {
                     // Unknown character: stop tokenizing here
@@ -94,6 +107,20 @@ impl<'a> Lexer<'a> {
         let text = &self.source[start..start + 1];
         self.pos += 1;
         Token::new(TokenKind::KeepHigh, text.to_string(), start, start + 1)
+    }
+
+    /// Handle two-character comparison operators: `>=` or `<=`
+    /// `two_char_kind` is the kind if we see `=`, `one_char_kind` otherwise.
+    fn consume_comparison(&mut self, start: usize, two_char_kind: TokenKind, one_char_kind: TokenKind) -> Token {
+        if self.peek_next() == Some(b'=') {
+            let text = &self.source[start..start + 2];
+            self.pos += 2;
+            Token::new(two_char_kind, text.to_string(), start, start + 2)
+        } else {
+            let text = &self.source[start..start + 1];
+            self.pos += 1;
+            Token::new(one_char_kind, text.to_string(), start, start + 1)
+        }
     }
 
     /// Consume a number: integer, decimal, or percentage.
@@ -169,5 +196,56 @@ mod tests {
         let tokens = Lexer::new("{4d6,3d6} 6#4d6").tokenize();
         assert_eq!(tokens[0].kind, TokenKind::LBrace);
         assert_eq!(tokens[10].kind, TokenKind::Sharp);
+    }
+
+    #[test]
+    fn test_comparison_operators() {
+        let tokens = Lexer::new("> >= < <= !=").tokenize();
+        assert_eq!(tokens[0].kind, TokenKind::GreaterThan);
+        assert_eq!(tokens[0].text, ">");
+        assert_eq!(tokens[1].kind, TokenKind::GreaterEqual);
+        assert_eq!(tokens[1].text, ">=");
+        assert_eq!(tokens[2].kind, TokenKind::LessThan);
+        assert_eq!(tokens[2].text, "<");
+        assert_eq!(tokens[3].kind, TokenKind::LessEqual);
+        assert_eq!(tokens[3].text, "<=");
+        assert_eq!(tokens[4].kind, TokenKind::NotEqual);
+        assert_eq!(tokens[4].text, "!=");
+        assert_eq!(tokens[5].kind, TokenKind::Eof);
+    }
+
+    #[test]
+    fn test_bonus_keyword() {
+        let tokens = Lexer::new("b5").tokenize();
+        assert_eq!(tokens[0].kind, TokenKind::Bonus);
+        assert_eq!(tokens[0].text, "b");
+        assert_eq!(tokens[1].kind, TokenKind::Number);
+        assert_eq!(tokens[1].text, "5");
+    }
+
+    #[test]
+    fn test_comparison_in_dice_expr() {
+        let tokens = Lexer::new("4d6>3").tokenize();
+        assert_eq!(tokens[0].kind, TokenKind::Number);
+        assert_eq!(tokens[1].kind, TokenKind::Dice);
+        assert_eq!(tokens[2].kind, TokenKind::Number);
+        assert_eq!(tokens[3].kind, TokenKind::GreaterThan);
+        assert_eq!(tokens[4].kind, TokenKind::Number);
+        assert_eq!(tokens[5].kind, TokenKind::Eof);
+    }
+
+    #[test]
+    fn test_bonus_and_keep_and_comparison() {
+        let tokens = Lexer::new("2d6b5k3>3").tokenize();
+        assert_eq!(tokens[0].kind, TokenKind::Number); // 2
+        assert_eq!(tokens[1].kind, TokenKind::Dice);    // d
+        assert_eq!(tokens[2].kind, TokenKind::Number);  // 6
+        assert_eq!(tokens[3].kind, TokenKind::Bonus);   // b
+        assert_eq!(tokens[4].kind, TokenKind::Number);  // 5
+        assert_eq!(tokens[5].kind, TokenKind::KeepHigh); // k
+        assert_eq!(tokens[6].kind, TokenKind::Number);  // 3
+        assert_eq!(tokens[7].kind, TokenKind::GreaterThan); // >
+        assert_eq!(tokens[8].kind, TokenKind::Number);  // 3
+        assert_eq!(tokens[9].kind, TokenKind::Eof);
     }
 }

@@ -29,12 +29,55 @@ pub enum KeepMode {
     Low(i64),
 }
 
-/// A dice expression: `[count]d[faces][k|kl N]`
+/// Comparison operator for counting dice matching a condition.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ComparisonOp {
+    /// `> N` — strictly greater than
+    Greater(Number),
+    /// `>= N` — greater than or equal
+    GreaterEqual(Number),
+    /// `< N` — strictly less than
+    Less(Number),
+    /// `<= N` — less than or equal
+    LessEqual(Number),
+    /// `!= N` — not equal
+    NotEqual(Number),
+}
+
+impl ComparisonOp {
+    /// The threshold value being compared against.
+    pub fn threshold(&self) -> Number {
+        match self {
+            ComparisonOp::Greater(n)
+            | ComparisonOp::GreaterEqual(n)
+            | ComparisonOp::Less(n)
+            | ComparisonOp::LessEqual(n)
+            | ComparisonOp::NotEqual(n) => *n,
+        }
+    }
+
+    /// The operator symbol as a string.
+    pub fn symbol(&self) -> &'static str {
+        match self {
+            ComparisonOp::Greater(_) => ">",
+            ComparisonOp::GreaterEqual(_) => ">=",
+            ComparisonOp::Less(_) => "<",
+            ComparisonOp::LessEqual(_) => "<=",
+            ComparisonOp::NotEqual(_) => "!=",
+        }
+    }
+}
+
+/// A dice expression: `[count]d[faces][bN][k|kl N][>N|>=N|<N|<=N|!=N]`
 #[derive(Debug, Clone)]
 pub struct DiceExpr {
     pub count: Number,
     pub faces: Number,
     pub keep: Option<KeepMode>,
+    /// Bonus dice: if a die result >= this threshold, roll an extra die (recursive)
+    pub bonus: Option<Number>,
+    /// Comparison: count kept dice matching this condition instead of summing
+    pub comparison: Option<ComparisonOp>,
 }
 
 /// Expression level: determines evaluation semantics.

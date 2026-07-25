@@ -5,7 +5,7 @@ use crate::lexer::token::{Token, TokenKind};
 use crate::lexer::Lexer;
 use crate::number::Number;
 
-use ast::{BinOp, DiceExpr, Expr, KeepMode};
+use ast::{BinOp, ComparisonOp, DiceExpr, Expr, KeepMode};
 
 /// Result of parsing a dicelet expression.
 pub struct ParseResult {
@@ -74,10 +74,6 @@ impl<'a> Parser<'a> {
     }
 
     // --- Token access helpers ---
-
-    fn peek(&self) -> &Token {
-        &self.tokens[self.pos]
-    }
 
     fn peek_kind(&self) -> TokenKind {
         self.tokens[self.pos].kind
@@ -200,35 +196,45 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// Parse a dice expression with an explicit count: `count d faces [k|kl N]`
+    /// Parse a dice expression with an explicit count: `count d faces [bN][k|kl N][>N|>=N|<N|<=N|!=N]`
     fn parse_dice_with_count(&mut self, count: Number) -> Option<Expr> {
         self.advance(); // consume 'd'
 
         let faces_tok = self.advance();
         let faces = Number::parse(&faces_tok.text)?;
 
+        // Parse optional modifiers in fixed order: bonus → keep → comparison
+        let bonus = self.parse_bonus_mode();
         let keep = self.parse_keep_mode();
+        let comparison = self.parse_comparison();
 
         Some(Expr::Dice(DiceExpr {
             count,
             faces,
             keep,
+            bonus,
+            comparison,
         }))
     }
 
-    /// Parse a dice expression with implicit count 1: `d faces [k|kl N]`
+    /// Parse a dice expression with implicit count 1: `d faces [bN][k|kl N][>N|>=N|<N|<=N|!=N]`
     fn parse_dice_no_count(&mut self) -> Option<Expr> {
         self.advance(); // consume 'd'
 
         let faces_tok = self.advance();
         let faces = Number::parse(&faces_tok.text)?;
 
+        // Parse optional modifiers in fixed order: bonus → keep → comparison
+        let bonus = self.parse_bonus_mode();
         let keep = self.parse_keep_mode();
+        let comparison = self.parse_comparison();
 
         Some(Expr::Dice(DiceExpr {
             count: Number::Int(1),
             faces,
             keep,
+            bonus,
+            comparison,
         }))
     }
 
@@ -249,6 +255,36 @@ impl<'a> Parser<'a> {
             }
             _ => None,
         }
+    }
+
+    /// Parse optional bonus mode: `b N` 
+    fn parse_bonus_mode(&mut self) -> Option<Number> {
+        if self.peek_kind() == TokenKind::Bonus {
+            self.advance(); // consume 'b'
+            let n_tok = self.advance();
+            let n = Number::parse(&n_tok.text)?;
+            Some(n)
+        } else {
+            None
+        }
+    }
+
+    /// Parse optional comparison: `>N | >=N | <N | <=N | !=N`
+    fn parse_comparison(&mut self) -> Option<ComparisonOp> {
+        let kind = self.peek_kind();
+        let op = match kind {
+            TokenKind::GreaterThan => ComparisonOp::Greater,
+            TokenKind::GreaterEqual => ComparisonOp::GreaterEqual,
+            TokenKind::LessThan => ComparisonOp::Less,
+            TokenKind::LessEqual => ComparisonOp::LessEqual,
+            TokenKind::NotEqual => ComparisonOp::NotEqual,
+            _ => return None,
+        };
+
+        self.advance(); // consume the comparison operator token
+        let n_tok = self.advance();
+        let n = Number::parse(&n_tok.text)?;
+        Some(op(n))
     }
 
     /// Parse a repeat expression: `count # unit`
@@ -485,5 +521,119 @@ mod tests {
     fn test_decimal() {
         let ast = parse_simple("3.14").unwrap();
         assert!(matches!(ast, Expr::Number(Number::Decimal(_))));
+    }
+
+    // --- New syntax: bonus dice ---
+
+    #[test]
+    fn test_dice_bonus() {
+        let ast = parse_simple("2d6b5").unwrap();
+        match ast {
+            Expr::Dice(d) => {
+                assert_eq!(d.bonus, Some(Number::Int(5)));
+                assert_eq!(d.keep, None);
+                assert_eq!(d.comparison, None);
+            }
+            _ => panic!("expected dice"),
+        }
+    }
+
+    #[test]
+    fn test_dice_bonus_with_keep() {
+        let ast = parse_simple("2d6b5k3").unwrap();
+        match ast {
+            Expr::Dice(d) => {
+                assert_eq!(d.bonus, Some(Number::Int(5)));
+                assert_eq!(d.keep, Some(KeepMode::High(3)));
+                assert_eq!(d.comparison, None);
+            }
+            _ => panic!("expected dice"),
+        }
+    }
+
+    #[test]
+    fn test_dice_bonus_keep_comparison() {
+        let ast = parse_simple("2d6b5k3>3").unwrap();
+        match ast {
+            Expr::Dice(d) => {
+                assert_eq!(d.bonus, Some(Number::Int(5)));
+                assert_eq!(d.keep, Some(KeepMode::High(3)));
+                assert_eq!(d.comparison, Some(ComparisonOp::Greater(Number::Int(3))));
+            }
+            _ => panic!("expected dice"),
+        }
+    }
+
+    // --- New syntax: comparison operators ---
+
+    #[test]
+    fn test_dice_comparison_greater() {
+        let ast = parse_simple("4d6>3").unwrap();
+        match ast {
+            Expr::Dice(d) => {
+                assert_eq!(d.comparison, Some(ComparisonOp::Greater(Number::Int(3))));
+            }
+            _ => panic!("expected dice"),
+        }
+    }
+
+    #[test]
+    fn test_dice_comparison_greater_equal() {
+        let ast = parse_simple("4d6>=3").unwrap();
+        match ast {
+            Expr::Dice(d) => {
+                assert_eq!(d.comparison, Some(ComparisonOp::GreaterEqual(Number::Int(3))));
+            }
+            _ => panic!("expected dice"),
+        }
+    }
+
+    #[test]
+    fn test_dice_comparison_less() {
+        let ast = parse_simple("4d6<3").unwrap();
+        match ast {
+            Expr::Dice(d) => {
+                assert_eq!(d.comparison, Some(ComparisonOp::Less(Number::Int(3))));
+            }
+            _ => panic!("expected dice"),
+        }
+    }
+
+    #[test]
+    fn test_dice_comparison_less_equal() {
+        let ast = parse_simple("4d6<=3").unwrap();
+        match ast {
+            Expr::Dice(d) => {
+                assert_eq!(d.comparison, Some(ComparisonOp::LessEqual(Number::Int(3))));
+            }
+            _ => panic!("expected dice"),
+        }
+    }
+
+    #[test]
+    fn test_dice_comparison_not_equal() {
+        let ast = parse_simple("4d6!=3").unwrap();
+        match ast {
+            Expr::Dice(d) => {
+                assert_eq!(d.comparison, Some(ComparisonOp::NotEqual(Number::Int(3))));
+            }
+            _ => panic!("expected dice"),
+        }
+    }
+
+    #[test]
+    fn test_dice_comparison_no_keep() {
+        // Comparison without keep should still work
+        let ast = parse_simple("d20>10").unwrap();
+        match ast {
+            Expr::Dice(d) => {
+                assert_eq!(d.count, Number::Int(1));
+                assert_eq!(d.faces, Number::Int(20));
+                assert_eq!(d.comparison, Some(ComparisonOp::Greater(Number::Int(10))));
+                assert_eq!(d.keep, None);
+                assert_eq!(d.bonus, None);
+            }
+            _ => panic!("expected dice"),
+        }
     }
 }

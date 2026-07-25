@@ -11,6 +11,18 @@ pub enum TokenKind {
     KeepHigh,
     /// `kl` / `kL` / `Kl` / `KL` keyword (keep low)
     KeepLow,
+    /// `b` / `B` keyword (bonus dice)
+    Bonus,
+    /// `>` (greater than)
+    GreaterThan,
+    /// `>=` (greater than or equal)
+    GreaterEqual,
+    /// `<` (less than)
+    LessThan,
+    /// `<=` (less than or equal)
+    LessEqual,
+    /// `!=` (not equal)
+    NotEqual,
     /// `+`
     Plus,
     /// `-`

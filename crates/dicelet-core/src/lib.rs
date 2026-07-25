@@ -26,7 +26,7 @@ pub mod roll;
 pub use eval::{EvalValue, ScalarValue};
 pub use error::{DiceletError, Result};
 pub use number::Number;
-pub use parser::ast::{BinOp, DiceExpr, Expr, KeepMode, Level};
+pub use parser::ast::{BinOp, ComparisonOp, DiceExpr, Expr, KeepMode, Level};
 pub use parser::{ParseResult, Parser};
 pub use rng::{Rng, Xoroshiro128StarStar};
 pub use roll::RollResult;
@@ -202,5 +202,69 @@ mod tests {
     fn test_roll_percentage() {
         let result = roll("10*150%", RollOptions::default()).unwrap();
         assert_eq!(result.summary, "15");
+    }
+
+    // --- New syntax: comparison ---
+
+    #[test]
+    fn test_roll_comparison_greater() {
+        // 4d6>3 with seed 42 — count of dice > 3
+        let result = roll("4d6>3", RollOptions { seed: Some(42), ..Default::default() }).unwrap();
+        assert!(result.detail.starts_with("<"));
+        assert!(result.detail.ends_with(">"));
+        let count: i64 = result.summary.parse().unwrap();
+        assert!(count >= 0 && count <= 4);
+    }
+
+    #[test]
+    fn test_roll_comparison_less() {
+        let result = roll("4d6<3", RollOptions { seed: Some(42), ..Default::default() }).unwrap();
+        let count: i64 = result.summary.parse().unwrap();
+        assert!(count >= 0 && count <= 4);
+    }
+
+    // --- New syntax: bonus dice ---
+
+    #[test]
+    fn test_roll_bonus() {
+        // Use threshold 3 to ensure bonuses trigger with seed 42
+        let result = roll("2d6b3", RollOptions { seed: Some(42), ..Default::default() }).unwrap();
+        assert!(result.detail.contains('!'));
+    }
+
+    #[test]
+    fn test_roll_bonus_with_keep() {
+        let result = roll("2d6b5k3", RollOptions { seed: Some(42), ..Default::default() }).unwrap();
+        assert!(result.detail.starts_with("["));
+        assert!(!result.summary.is_empty());
+    }
+
+    // --- Combined: bonus + keep + comparison ---
+
+    #[test]
+    fn test_roll_bonus_keep_comparison() {
+        let result = roll("2d6b5k3>3", RollOptions { seed: Some(42), ..Default::default() }).unwrap();
+        assert!(result.detail.starts_with("<"));
+        assert!(result.detail.ends_with(">"));
+        assert!(!result.summary.is_empty());
+    }
+
+    // --- Comparison in larger expressions ---
+
+    #[test]
+    fn test_roll_comparison_in_binop() {
+        // 4d6>3 + 2: count dice > 3, then add 2
+        let comp = roll("4d6>3", RollOptions { seed: Some(42), ..Default::default() }).unwrap();
+        let result = roll("4d6>3+2", RollOptions { seed: Some(42), ..Default::default() }).unwrap();
+        let expected: i64 = comp.summary.parse::<i64>().unwrap() + 2;
+        assert_eq!(result.summary.parse::<i64>().unwrap(), expected);
+    }
+
+    #[test]
+    fn test_roll_bonus_no_crash() {
+        // Bonus alone (without dice) should not crash — just be tail
+        let result = roll("b5", RollOptions::default()).unwrap();
+        assert_eq!(result.consumed, "");
+        assert_eq!(result.tail, "b5");
     }
 }

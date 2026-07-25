@@ -1,7 +1,7 @@
 use crate::error::{DiceletError, Result};
 use crate::number::Number;
-use crate::parser::ast::{BinOp, Expr, Level};
-use crate::roll::roll_with_keep;
+use crate::parser::ast::{BinOp, ComparisonOp, Expr, Level};
+use crate::roll::roll_with_modifiers;
 use crate::rng::Rng;
 
 /// A single scalar result with its detailed roll information.
@@ -121,8 +121,23 @@ fn eval_rand(expr: &Expr, rng: &mut dyn Rng) -> Result<(Number, String)> {
             if count < 1 || faces < 2 {
                 return Err(DiceletError::InvalidDice);
             }
-            let roll = roll_with_keep(rng, count, faces, dice.keep)?;
-            Ok((Number::Int(roll.summary), roll.detail()))
+            let roll = roll_with_modifiers(rng, count, faces, dice.keep, dice.bonus)?;
+
+            if let Some(ref comp) = dice.comparison {
+                // Comparison mode: count kept dice matching the condition
+                let matching_count: i64 = roll
+                    .results
+                    .iter()
+                    .zip(roll.flags.iter())
+                    .filter(|(_, &kept)| kept)
+                    .filter(|(&val, _)| matches_comparison(val as i64, comp))
+                    .count() as i64;
+                let detail = roll.detail_comparison(comp);
+                Ok((Number::Int(matching_count), detail))
+            } else {
+                // Normal mode: sum kept dice
+                Ok((Number::Int(roll.summary), roll.detail()))
+            }
         }
         Expr::Neg(e) => {
             let (val, detail) = eval_rand(e, rng)?;
@@ -362,5 +377,16 @@ fn format_binop_detail(op: BinOp, a_detail: &str, b_detail: &str) -> String {
         format!("{} {}", a_detail, op.symbol())
     } else {
         format!("{} {} {}", a_detail, op.symbol(), b_detail)
+    }
+}
+
+/// Check if a die result matches a comparison operator.
+fn matches_comparison(val: i64, comp: &ComparisonOp) -> bool {
+    match comp {
+        ComparisonOp::Greater(n) => val > n.to_i64(),
+        ComparisonOp::GreaterEqual(n) => val >= n.to_i64(),
+        ComparisonOp::Less(n) => val < n.to_i64(),
+        ComparisonOp::LessEqual(n) => val <= n.to_i64(),
+        ComparisonOp::NotEqual(n) => val != n.to_i64(),
     }
 }
