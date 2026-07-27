@@ -9,6 +9,8 @@ jobs:
   # ── Version consistency check ────────────────────────────────────
   version-check:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - name: Check version consistency across all packages
@@ -39,10 +41,31 @@ jobs:
             exit 1
           fi
           echo "✅ All versions match: $CARGO_VER"
+          echo "version=$CARGO_VER" >> $GITHUB_OUTPUT
+        id: version
+
+  # ── Auto tag ─────────────────────────────────────────────────────
+  auto-tag:
+    needs: version-check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create and push tag
+        run: |
+          TAG="v${{ needs.version-check.outputs.version }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists, skipping."
+          else
+            git tag "$TAG"
+            git push origin "$TAG"
+            echo "✅ Created and pushed tag: $TAG"
+          fi
 
   # ── Rust core tests ──────────────────────────────────────────────
   test-core:
-    needs: version-check
+    needs: auto-tag
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

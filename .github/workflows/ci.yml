@@ -11,84 +11,100 @@ on:
       - main
 
 jobs:
-  test:
-    name: Test
+  # ── Rust core tests (fast, no native builds) ─────────────────────
+  test-core:
+    name: Test (core)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --package dicelet-core
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Run core tests
-        run: cargo test --package dicelet-core
-
-  build-native:
+  # ── Build napi native modules + smoke test per platform ──────────
+  build-napi:
+    name: Build & Test (${{ matrix.settings.target }})
+    needs: test-core
     strategy:
       fail-fast: false
       matrix:
         settings:
           - host: windows-latest
             target: x86_64-pc-windows-msvc
-            build: |
-              cd crates/dicelet-napi
-              npx napi build --platform --release
-            node-index: dicelet.win32-x64-msvc.node
+            node-file: dicelet.win32-x64-msvc.node
           - host: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            build: |
-              cd crates/dicelet-napi
-              npx napi build --platform --release
-            node-index: dicelet.linux-x64-gnu.node
+            node-file: dicelet.linux-x64-gnu.node
           - host: macos-latest
             target: x86_64-apple-darwin
-            build: |
-              cd crates/dicelet-napi
-              npx napi build --platform --release
-            node-index: dicelet.darwin-x64.node
+            node-file: dicelet.darwin-x64.node
           - host: macos-latest
             target: aarch64-apple-darwin
-            build: |
-              cd crates/dicelet-napi
-              npx napi build --platform --release
-            node-index: dicelet.darwin-arm64.node
+            node-file: dicelet.darwin-arm64.node
 
-    name: Build Native ${{ matrix.settings.target }}
     runs-on: ${{ matrix.settings.host }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 24
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.settings.target }}
 
       - name: Install dependencies
-        run: npm install
         working-directory: crates/dicelet-napi
+        run: npm install
 
-      - name: Build
-        run: ${{ matrix.settings.build }}
+      - name: Build native module
+        working-directory: crates/dicelet-napi
+        run: npx napi build --platform --release
+
+      - name: Smoke test
+        working-directory: crates/dicelet-napi
+        run: node test.js
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.settings.node-index }}
-          path: crates/dicelet-napi/${{ matrix.settings.node-index }}
+          name: ${{ matrix.settings.node-file }}
+          path: crates/dicelet-napi/${{ matrix.settings.node-file }}
 
-  build-wasm:
-    name: Build WASM
+  # ── Build Python (PyO3) + test ───────────────────────────────────
+  build-python:
+    name: Build & Test (Python)
+    needs: test-core
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install maturin
+        run: pip install maturin pytest
+
+      - name: Build and install (dev)
+        working-directory: crates/dicelet-python
+        run: maturin develop
+
+      - name: Run tests
+        working-directory: crates/dicelet-python
+        run: python -m pytest tests/ -v
+
+  # ── Build WASM + test ────────────────────────────────────────────
+  build-wasm:
+    name: Build & Test (WASM)
+    needs: test-core
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
 
@@ -96,9 +112,12 @@ jobs:
         run: cargo install wasm-pack
 
       - name: Build WASM
-        run: |
-          cd crates/dicelet-wasm
-          wasm-pack build --target web --release --out-dir pkg
+        working-directory: crates/dicelet-wasm
+        run: wasm-pack build --target web --release --out-dir pkg
+
+      - name: Test WASM (Node.js)
+        working-directory: crates/dicelet-wasm
+        run: wasm-pack test --node
 
       - name: Upload WASM artifact
         uses: actions/upload-artifact@v4
