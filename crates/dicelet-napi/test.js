@@ -1,4 +1,23 @@
-const { roll, parse } = require('./dicelet.win32-x64-msvc.node');
+const { platform, arch } = process;
+
+// Map platform+arch to .node filename (same convention as index.js)
+function nodeFile() {
+  if (platform === 'win32') {
+    if (arch === 'x64') return './dicelet.win32-x64-msvc.node';
+    if (arch === 'arm64') return './dicelet.win32-arm64-msvc.node';
+  }
+  if (platform === 'darwin') {
+    if (arch === 'x64') return './dicelet.darwin-x64.node';
+    if (arch === 'arm64') return './dicelet.darwin-arm64.node';
+  }
+  if (platform === 'linux') {
+    if (arch === 'x64') return './dicelet.linux-x64-gnu.node';
+    if (arch === 'arm64') return './dicelet.linux-arm64-gnu.node';
+  }
+  throw new Error(`Unsupported ${platform}-${arch}`);
+}
+
+const { roll, parse } = require(nodeFile());
 
 console.log('=== Dicelet NPM Test ===\n');
 
