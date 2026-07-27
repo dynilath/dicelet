@@ -4,17 +4,15 @@
   "description": "Dicelet dice expression parsing and evaluation engine",
   "main": "index.js",
   "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "bin/"
+  ],
   "napi": {
     "name": "dicelet",
     "packageName": "dicelet",
-    "cargoCwd": "crates/dicelet-napi",
-    "triples": {
-      "defaults": true,
-      "additional": [
-        "aarch64-unknown-linux-gnu",
-        "x86_64-unknown-linux-gnu"
-      ]
-    }
+    "cargoCwd": "crates/dicelet-napi"
   },
   "license": "MIT",
   "engines": {
@@ -47,10 +45,5 @@
   },
   "devDependencies": {
     "@napi-rs/cli": "^2.18.0"
-  },
-  "optionalDependencies": {
-    "dicelet-win32-x64-msvc": "0.3.1",
-    "dicelet-linux-x64-gnu": "0.3.1",
-    "dicelet-linux-arm64-gnu": "0.3.1"
   }
 }
