@@ -99,9 +99,8 @@ jobs:
   publish-pypi:
     needs: test-core
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        target: [x86_64, i686, aarch64, armv7]
+    permissions:
+      id-token: write   # Required for PyPI Trusted Publishers (OIDC)
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -114,37 +113,17 @@ jobs:
 
       - name: Build wheels
         working-directory: crates/dicelet-python
-        run: maturin build --release --out dist
-
-      - name: Upload wheels
-        uses: actions/upload-artifact@v4
-        with:
-          name: pypi-wheels-${{ matrix.target }}
-          path: crates/dicelet-python/dist
-
-  # ── Publish to PyPI (aggregates all wheels + sdist) ──────────────
-  publish-pypi-upload:
-    needs: publish-pypi
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write   # Required for PyPI Trusted Publishers (OIDC)
-    steps:
-      - name: Download all wheels
-        uses: actions/download-artifact@v4
-        with:
-          pattern: pypi-wheels-*
-          path: dist
-          merge-multiple: true
+        run: maturin build --release
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          packages-dir: dist
+          packages-dir: crates/dicelet-python/target/wheels
           skip-existing: true
 
   # ── Auto tag (only after all publishes succeed) ──────────────────
   auto-tag:
-    needs: publish-pypi-upload
+    needs: publish-pypi
     runs-on: ubuntu-latest
     permissions:
       contents: write
