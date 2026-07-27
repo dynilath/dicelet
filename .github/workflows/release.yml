@@ -44,28 +44,9 @@ jobs:
           echo "version=$CARGO_VER" >> $GITHUB_OUTPUT
         id: version
 
-  # ── Auto tag ─────────────────────────────────────────────────────
-  auto-tag:
-    needs: version-check
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - name: Create and push tag
-        run: |
-          TAG="v${{ needs.version-check.outputs.version }}"
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists, skipping."
-          else
-            git tag "$TAG"
-            git push origin "$TAG"
-            echo "✅ Created and pushed tag: $TAG"
-          fi
-
   # ── Rust core tests ──────────────────────────────────────────────
   test-core:
-    needs: auto-tag
+    needs: version-check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -146,3 +127,23 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist
+
+  # ── Auto tag (only after all publishes succeed) ──────────────────
+  auto-tag:
+    needs: publish-pypi-upload
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create and push tag
+        run: |
+          CARGO_VER=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          TAG="v$CARGO_VER"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists, skipping."
+          else
+            git tag "$TAG"
+            git push origin "$TAG"
+            echo "✅ Created and pushed tag: $TAG"
+          fi
