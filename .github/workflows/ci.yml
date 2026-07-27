@@ -34,16 +34,20 @@ jobs:
           - host: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             node-file: dicelet.linux-x64-gnu.node
-          - host: macos-latest
-            target: x86_64-apple-darwin
-            node-file: dicelet.darwin-x64.node
-          - host: macos-latest
-            target: aarch64-apple-darwin
-            node-file: dicelet.darwin-arm64.node
+          - host: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            node-file: dicelet.linux-arm64-gnu.node
+            cross: true
 
     runs-on: ${{ matrix.settings.host }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install cross-compilation deps (Linux ARM64)
+        if: matrix.settings.cross
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
 
       - uses: actions/setup-node@v4
         with:
@@ -59,9 +63,16 @@ jobs:
 
       - name: Build native module
         working-directory: crates/dicelet-napi
-        run: npx napi build --platform --release
+        run: |
+          if [ "${{ matrix.settings.cross }}" = "true" ]; then
+            npx napi build --platform --release --target ${{ matrix.settings.target }}
+          else
+            npx napi build --platform --release
+          fi
+        shell: bash
 
       - name: Smoke test
+        if: matrix.settings.cross != true
         working-directory: crates/dicelet-napi
         run: node test.js
 

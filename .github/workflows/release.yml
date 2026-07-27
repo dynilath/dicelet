@@ -104,16 +104,25 @@ jobs:
         include:
           - host: ubuntu-latest
             target: x86_64
+          - host: ubuntu-latest
+            target: aarch64
+            rust-target: aarch64-unknown-linux-gnu
           - host: windows-latest
             target: x64
-          - host: macos-13
-            target: x86_64
-          - host: macos-latest
-            target: aarch64
     runs-on: ${{ matrix.host }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install cross-compilation deps (Linux ARM64)
+        if: matrix.rust-target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-target }}
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -123,7 +132,13 @@ jobs:
 
       - name: Build wheel
         working-directory: crates/dicelet-python
-        run: maturin build --release --out dist
+        run: |
+          if [ -n "${{ matrix.rust-target }}" ]; then
+            maturin build --release --target ${{ matrix.rust-target }} --out dist
+          else
+            maturin build --release --out dist
+          fi
+        shell: bash
 
       - name: Upload wheel
         uses: actions/upload-artifact@v4
