@@ -285,8 +285,7 @@ jobs:
       - name: Build wheels
         run: |
           pip install cibuildwheel
-          cibuildwheel --output-dir wheelhouse
-        working-directory: crates/dicelet-python
+          cibuildwheel --output-dir crates/dicelet-python/wheelhouse crates/dicelet-python
         env:
           CIBW_BUILD: "cp311-* cp312-* cp313-*"
           CIBW_SKIP: "*-musllinux_* pp* *_i686"
