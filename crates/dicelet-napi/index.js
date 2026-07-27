@@ -35,7 +35,7 @@ switch (platform) {
         localFileExisted = existsSync(join(__dirname, 'dicelet.android-arm64.node'))
         try {
           if (localFileExisted) {
-            nativeBinding = require('./dicelet.android-arm64.node')
+            nativeBinding = require('./bin/dicelet.android-arm64.node')
           } else {
             nativeBinding = require('dicelet-android-arm64')
           }
@@ -47,7 +47,7 @@ switch (platform) {
         localFileExisted = existsSync(join(__dirname, 'dicelet.android-arm-eabi.node'))
         try {
           if (localFileExisted) {
-            nativeBinding = require('./dicelet.android-arm-eabi.node')
+            nativeBinding = require('./bin/dicelet.android-arm-eabi.node')
           } else {
             nativeBinding = require('dicelet-android-arm-eabi')
           }
@@ -67,7 +67,7 @@ switch (platform) {
         )
         try {
           if (localFileExisted) {
-            nativeBinding = require('./dicelet.win32-x64-msvc.node')
+            nativeBinding = require('./bin/dicelet.win32-x64-msvc.node')
           } else {
             nativeBinding = require('dicelet-win32-x64-msvc')
           }
@@ -81,7 +81,7 @@ switch (platform) {
         )
         try {
           if (localFileExisted) {
-            nativeBinding = require('./dicelet.win32-ia32-msvc.node')
+            nativeBinding = require('./bin/dicelet.win32-ia32-msvc.node')
           } else {
             nativeBinding = require('dicelet-win32-ia32-msvc')
           }
@@ -95,7 +95,7 @@ switch (platform) {
         )
         try {
           if (localFileExisted) {
-            nativeBinding = require('./dicelet.win32-arm64-msvc.node')
+            nativeBinding = require('./bin/dicelet.win32-arm64-msvc.node')
           } else {
             nativeBinding = require('dicelet-win32-arm64-msvc')
           }
@@ -111,7 +111,7 @@ switch (platform) {
     localFileExisted = existsSync(join(__dirname, 'dicelet.darwin-universal.node'))
     try {
       if (localFileExisted) {
-        nativeBinding = require('./dicelet.darwin-universal.node')
+        nativeBinding = require('./bin/dicelet.darwin-universal.node')
       } else {
         nativeBinding = require('dicelet-darwin-universal')
       }
@@ -122,7 +122,7 @@ switch (platform) {
         localFileExisted = existsSync(join(__dirname, 'dicelet.darwin-x64.node'))
         try {
           if (localFileExisted) {
-            nativeBinding = require('./dicelet.darwin-x64.node')
+            nativeBinding = require('./bin/dicelet.darwin-x64.node')
           } else {
             nativeBinding = require('dicelet-darwin-x64')
           }
@@ -136,7 +136,7 @@ switch (platform) {
         )
         try {
           if (localFileExisted) {
-            nativeBinding = require('./dicelet.darwin-arm64.node')
+            nativeBinding = require('./bin/dicelet.darwin-arm64.node')
           } else {
             nativeBinding = require('dicelet-darwin-arm64')
           }
@@ -155,7 +155,7 @@ switch (platform) {
     localFileExisted = existsSync(join(__dirname, 'dicelet.freebsd-x64.node'))
     try {
       if (localFileExisted) {
-        nativeBinding = require('./dicelet.freebsd-x64.node')
+        nativeBinding = require('./bin/dicelet.freebsd-x64.node')
       } else {
         nativeBinding = require('dicelet-freebsd-x64')
       }
@@ -172,7 +172,7 @@ switch (platform) {
           )
           try {
             if (localFileExisted) {
-              nativeBinding = require('./dicelet.linux-x64-musl.node')
+              nativeBinding = require('./bin/dicelet.linux-x64-musl.node')
             } else {
               nativeBinding = require('dicelet-linux-x64-musl')
             }
@@ -185,7 +185,7 @@ switch (platform) {
           )
           try {
             if (localFileExisted) {
-              nativeBinding = require('./dicelet.linux-x64-gnu.node')
+              nativeBinding = require('./bin/dicelet.linux-x64-gnu.node')
             } else {
               nativeBinding = require('dicelet-linux-x64-gnu')
             }
@@ -201,7 +201,7 @@ switch (platform) {
           )
           try {
             if (localFileExisted) {
-              nativeBinding = require('./dicelet.linux-arm64-musl.node')
+              nativeBinding = require('./bin/dicelet.linux-arm64-musl.node')
             } else {
               nativeBinding = require('dicelet-linux-arm64-musl')
             }
@@ -214,7 +214,7 @@ switch (platform) {
           )
           try {
             if (localFileExisted) {
-              nativeBinding = require('./dicelet.linux-arm64-gnu.node')
+              nativeBinding = require('./bin/dicelet.linux-arm64-gnu.node')
             } else {
               nativeBinding = require('dicelet-linux-arm64-gnu')
             }
@@ -230,7 +230,7 @@ switch (platform) {
           )
           try {
             if (localFileExisted) {
-              nativeBinding = require('./dicelet.linux-arm-musleabihf.node')
+              nativeBinding = require('./bin/dicelet.linux-arm-musleabihf.node')
             } else {
               nativeBinding = require('dicelet-linux-arm-musleabihf')
             }
@@ -243,7 +243,7 @@ switch (platform) {
           )
           try {
             if (localFileExisted) {
-              nativeBinding = require('./dicelet.linux-arm-gnueabihf.node')
+              nativeBinding = require('./bin/dicelet.linux-arm-gnueabihf.node')
             } else {
               nativeBinding = require('dicelet-linux-arm-gnueabihf')
             }
@@ -259,7 +259,7 @@ switch (platform) {
           )
           try {
             if (localFileExisted) {
-              nativeBinding = require('./dicelet.linux-riscv64-musl.node')
+              nativeBinding = require('./bin/dicelet.linux-riscv64-musl.node')
             } else {
               nativeBinding = require('dicelet-linux-riscv64-musl')
             }
@@ -272,7 +272,7 @@ switch (platform) {
           )
           try {
             if (localFileExisted) {
-              nativeBinding = require('./dicelet.linux-riscv64-gnu.node')
+              nativeBinding = require('./bin/dicelet.linux-riscv64-gnu.node')
             } else {
               nativeBinding = require('dicelet-linux-riscv64-gnu')
             }
@@ -287,7 +287,7 @@ switch (platform) {
         )
         try {
           if (localFileExisted) {
-            nativeBinding = require('./dicelet.linux-s390x-gnu.node')
+            nativeBinding = require('./bin/dicelet.linux-s390x-gnu.node')
           } else {
             nativeBinding = require('dicelet-linux-s390x-gnu')
           }

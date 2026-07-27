@@ -63,38 +63,24 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test --package dicelet-core
 
-  # ── Build napi native modules on ALL platforms ───────────────────
+  # ── Build napi native modules on all platforms ──────────────────
   build-npm:
     needs: test-core
     strategy:
       fail-fast: false
       matrix:
         include:
-          # ── Windows ──
           - host: windows-latest
             target: x86_64-pc-windows-msvc
             node-file: dicelet.win32-x64-msvc.node
-            pkg: dicelet-win32-x64-msvc
-            os-constraint: win32
-            cpu-constraint: x64
 
-          # ── Linux x64 gnu ──
           - host: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             node-file: dicelet.linux-x64-gnu.node
-            pkg: dicelet-linux-x64-gnu
-            os-constraint: linux
-            cpu-constraint: x64
-            libc: gnu
 
-          # ── Linux ARM64 gnu ──
           - host: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             node-file: dicelet.linux-arm64-gnu.node
-            pkg: dicelet-linux-arm64-gnu
-            os-constraint: linux
-            cpu-constraint: arm64
-            libc: gnu
             setup: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
 
     runs-on: ${{ matrix.host }}
@@ -135,11 +121,11 @@ jobs:
       - name: Upload platform artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.pkg }}
+          name: ${{ matrix.node-file }}
           path: crates/dicelet-napi/${{ matrix.node-file }}
           if-no-files-found: error
 
-  # ── Publish npm: main package + all platform sub-packages ────────
+  # ── Publish npm: single package with all platform binaries ──────
   publish-npm:
     needs: [version-check, build-npm]
     if: needs.version-check.outputs.published != 'true'
@@ -154,111 +140,21 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
 
-      - name: Download all platform artifacts
+      - name: Download all platform .node files
         uses: actions/download-artifact@v4
         with:
-          pattern: dicelet-*
-          path: crates/dicelet-napi/
+          pattern: dicelet.*
+          path: native/
           merge-multiple: true
 
-      - name: List downloaded artifacts
-        run: ls -la crates/dicelet-napi/
-        shell: bash
-
-      - name: Publish platform-specific sub-packages
-        working-directory: crates/dicelet-napi
+      - name: Bundle .node files into package
         run: |
-          set -e
-          VER=$(node -p "require('./package.json').version")
-          echo "Publishing platform sub-packages for v$VER..."
+          mkdir -p crates/dicelet-napi/bin
+          find native/ -name "*.node" -exec cp -v {} crates/dicelet-napi/bin/ \;
+          echo "--- Package bin/ contents ---"
+          ls -la crates/dicelet-napi/bin/
 
-          # Define platform metadata for each node file
-          # Format: node_file|os|cpu|libc(optional)
-          PLATFORMS=(
-            "dicelet.win32-x64-msvc.node|win32|x64|"
-            "dicelet.linux-x64-gnu.node|linux|x64|gnu"
-            "dicelet.linux-arm64-gnu.node|linux|arm64|gnu"
-          )
-
-          for entry in "${PLATFORMS[@]}"; do
-            IFS='|' read -r node_file os cpu libc <<< "$entry"
-
-            if [ ! -f "$node_file" ]; then
-              echo "::warning::Skipping $node_file (file not found)"
-              continue
-            fi
-
-            # Extract suffix from filename: dicelet.win32-x64-msvc.node -> win32-x64-msvc
-            suffix=$(echo "$node_file" | sed 's/dicelet\.\(.*\)\.node/\1/')
-            pkg_name="dicelet-$suffix"
-
-            echo ""
-            echo "=== Publishing $pkg_name@$VER ==="
-
-            # Create sub-package directory
-            mkdir -p "publish/$pkg_name"
-            cp "$node_file" "publish/$pkg_name/"
-
-            # Generate package.json for sub-package
-            if [ -n "$libc" ]; then
-              LIBC_JSON=", \"libc\": [\"$libc\"]"
-            else
-              LIBC_JSON=""
-            fi
-
-            cat > "publish/$pkg_name/package.json" << EOF
-          {
-            "name": "$pkg_name",
-            "version": "$VER",
-            "main": "$node_file",
-            "files": ["$node_file"],
-            "os": ["$os"],
-            "cpu": ["$cpu"]$LIBC_JSON,
-            "license": "MIT",
-            "repository": {
-              "type": "git",
-              "url": "https://github.com/dynilath/dicelet.git"
-            },
-            "publishConfig": {
-              "access": "public"
-            }
-          }
-          EOF
-
-            # Publish sub-package (OIDC handles auth via setup-node + id-token: write)
-            cd "publish/$pkg_name"
-            npm publish --access public
-            cd ../..
-            echo "Published $pkg_name@$VER"
-          done
-        shell: bash
-
-      - name: Sync optionalDependencies versions
-        working-directory: crates/dicelet-napi
-        run: |
-          VER=$(node -p "require('./package.json').version")
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            const deps = pkg.optionalDependencies || {};
-            const platforms = [
-              'dicelet-win32-x64-msvc',
-              'dicelet-linux-x64-gnu',
-              'dicelet-linux-arm64-gnu'
-            ];
-            for (const p of platforms) {
-              deps[p] = '$VER';
-            }
-            // Remove platforms we no longer support
-            delete deps['dicelet-win32-arm64-msvc'];
-            delete deps['dicelet-linux-arm64-musl'];
-            pkg.optionalDependencies = deps;
-            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-            console.log('Synced optionalDependencies to v$VER');
-          "
-        shell: bash
-
-      - name: Publish main package to npm
+      - name: Publish to npm
         working-directory: crates/dicelet-napi
         run: npm publish --provenance --access public
 
@@ -361,7 +257,7 @@ jobs:
       - name: Download npm artifacts for release assets
         uses: actions/download-artifact@v4
         with:
-          pattern: dicelet-*
+          pattern: dicelet.*
           path: release-assets/
           merge-multiple: true
 

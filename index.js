@@ -35,14 +35,14 @@ function requireNative() {
       switch (arch) {
         case 'arm64':
           try {
-            return require('./dicelet.android-arm64.node')
+            return require('./bin/dicelet.android-arm64.node')
           } catch (e) {
             loadError = e
           }
           break
         case 'arm':
           try {
-            return require('./dicelet.android-arm-eabi.node')
+            return require('./bin/dicelet.android-arm-eabi.node')
           } catch (e) {
             loadError = e
           }
@@ -55,21 +55,21 @@ function requireNative() {
       switch (arch) {
         case 'x64':
           try {
-            return require('./dicelet.win32-x64-msvc.node')
+            return require('./bin/dicelet.win32-x64-msvc.node')
           } catch (e) {
             loadError = e
           }
           break
         case 'ia32':
           try {
-            return require('./dicelet.win32-ia32-msvc.node')
+            return require('./bin/dicelet.win32-ia32-msvc.node')
           } catch (e) {
             loadError = e
           }
           break
         case 'arm64':
           try {
-            return require('./dicelet.win32-arm64-msvc.node')
+            return require('./bin/dicelet.win32-arm64-msvc.node')
           } catch (e) {
             loadError = e
           }
@@ -82,14 +82,14 @@ function requireNative() {
       switch (arch) {
         case 'x64':
           try {
-            return require('./dicelet.darwin-x64.node')
+            return require('./bin/dicelet.darwin-x64.node')
           } catch (e) {
             loadError = e
           }
           break
         case 'arm64':
           try {
-            return require('./dicelet.darwin-arm64.node')
+            return require('./bin/dicelet.darwin-arm64.node')
           } catch (e) {
             loadError = e
           }
@@ -103,7 +103,7 @@ function requireNative() {
         throw new Error(`Unsupported architecture on FreeBSD ${arch}`)
       }
       try {
-        return require('./dicelet.freebsd-x64.node')
+        return require('./bin/dicelet.freebsd-x64.node')
       } catch (e) {
         loadError = e
       }
@@ -113,13 +113,13 @@ function requireNative() {
         case 'x64':
           if (isMusl()) {
             try {
-              return require('./dicelet.linux-x64-musl.node')
+              return require('./bin/dicelet.linux-x64-musl.node')
             } catch (e) {
               loadError = e
             }
           } else {
             try {
-              return require('./dicelet.linux-x64-gnu.node')
+              return require('./bin/dicelet.linux-x64-gnu.node')
             } catch (e) {
               loadError = e
             }
@@ -128,13 +128,13 @@ function requireNative() {
         case 'arm64':
           if (isMusl()) {
             try {
-              return require('./dicelet.linux-arm64-musl.node')
+              return require('./bin/dicelet.linux-arm64-musl.node')
             } catch (e) {
               loadError = e
             }
           } else {
             try {
-              return require('./dicelet.linux-arm64-gnu.node')
+              return require('./bin/dicelet.linux-arm64-gnu.node')
             } catch (e) {
               loadError = e
             }
@@ -142,7 +142,7 @@ function requireNative() {
           break
         case 'arm':
           try {
-            return require('./dicelet.linux-arm-gnueabihf.node')
+            return require('./bin/dicelet.linux-arm-gnueabihf.node')
           } catch (e) {
             loadError = e
           }
