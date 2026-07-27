@@ -28,26 +28,38 @@ jobs:
       fail-fast: false
       matrix:
         settings:
+          # ── Windows ──
           - host: windows-latest
             target: x86_64-pc-windows-msvc
             node-file: dicelet.win32-x64-msvc.node
+
+          # ── Linux x64 gnu ──
           - host: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             node-file: dicelet.linux-x64-gnu.node
+
+          # ── Linux x64 musl ──
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            node-file: dicelet.linux-x64-musl.node
+            setup: sudo apt-get update && sudo apt-get install -y musl-tools
+            cross: true
+
+          # ── Linux ARM64 gnu (cross-compile) ──
           - host: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             node-file: dicelet.linux-arm64-gnu.node
             cross: true
+            setup: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
 
     runs-on: ${{ matrix.settings.host }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install cross-compilation deps (Linux ARM64)
-        if: matrix.settings.cross
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: Install build dependencies
+        if: matrix.settings.setup != ''
+        run: ${{ matrix.settings.setup }}
+        shell: bash
 
       - uses: actions/setup-node@v4
         with:
@@ -67,12 +79,16 @@ jobs:
           if [ "${{ matrix.settings.cross }}" = "true" ]; then
             export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
             npx napi build --platform --release --target ${{ matrix.settings.target }}
+          elif [ "${{ matrix.settings.target }}" = "x86_64-unknown-linux-musl" ]; then
+            export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc
+            export CC_x86_64_unknown_linux_musl=musl-gcc
+            npx napi build --platform --release --target ${{ matrix.settings.target }}
           else
             npx napi build --platform --release
           fi
         shell: bash
 
-      - name: Smoke test
+      - name: Smoke test (native platform only)
         if: matrix.settings.cross != true
         working-directory: crates/dicelet-napi
         run: node test.js

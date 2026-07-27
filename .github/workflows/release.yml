@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - release
+    tags:
+      - 'v*'
 
 jobs:
   # ── Version consistency check ────────────────────────────────────
@@ -11,21 +13,18 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      published: ${{ steps.npm-check.outputs.published }}
     steps:
       - uses: actions/checkout@v4
       - name: Check version consistency across all packages
         run: |
-          # Extract Cargo.toml workspace version (source of truth)
           CARGO_VER=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
-
-          # Extract npm versions
           ROOT_NPM_VER=$(python3 -c "import json; print(json.load(open('package.json'))['version'])")
           NAPI_NPM_VER=$(python3 -c "import json; print(json.load(open('crates/dicelet-napi/package.json'))['version'])")
 
           echo "Cargo.toml (source of truth):  $CARGO_VER"
           echo "package.json (npm):           $ROOT_NPM_VER"
           echo "napi package.json:            $NAPI_NPM_VER"
-          echo "pyproject.toml:               dynamic → reads from Cargo.toml"
 
           fail=0
           if [ "$CARGO_VER" != "$ROOT_NPM_VER" ]; then
@@ -40,9 +39,20 @@ jobs:
             echo "::error::Version mismatch! Update all to match Cargo.toml [workspace.package].version"
             exit 1
           fi
-          echo "✅ All versions match: $CARGO_VER"
+          echo "All versions match: $CARGO_VER"
           echo "version=$CARGO_VER" >> $GITHUB_OUTPUT
         id: version
+
+      - name: Check if version already published to npm
+        run: |
+          VER=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          if npm view dicelet@"$VER" version >/dev/null 2>&1; then
+            echo "::warning::dicelet@$VER already exists on npm."
+            echo "published=true" >> $GITHUB_OUTPUT
+          else
+            echo "published=false" >> $GITHUB_OUTPUT
+          fi
+        id: npm-check
 
   # ── Rust core tests ──────────────────────────────────────────────
   test-core:
@@ -53,104 +63,254 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test --package dicelet-core
 
-  # ── Node.js (napi-rs) build & publish ────────────────────────────
-  publish-npm:
-    needs: test-core
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write   # Required for npm Trusted Publishers (OIDC)
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          registry-url: https://registry.npmjs.org
-
-      - name: Install napi-cli
-        run: npm install -g @napi-rs/cli
-
-      - name: Install npm dependencies
-        working-directory: crates/dicelet-napi
-        run: npm install
-
-      - name: Build napi artifacts
-        working-directory: crates/dicelet-napi
-        run: npx napi prepublish -t npm
-
-      - name: Check if version already published
-        working-directory: crates/dicelet-napi
-        run: |
-          PKG_VER=$(node -p "require('./package.json').version")
-          if npm view dicelet@"$PKG_VER" version >/dev/null 2>&1; then
-            echo "Version $PKG_VER already published, skipping."
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
-        id: check
-
-      - name: Publish to npm
-        if: steps.check.outputs.skip != 'true'
-        working-directory: crates/dicelet-napi
-        run: npm publish
-
-  # ── Python (PyO3) build wheels (per platform) ────────────────────
-  pypi-wheels:
+  # ── Build napi native modules on ALL platforms ───────────────────
+  build-npm:
     needs: test-core
     strategy:
       fail-fast: false
       matrix:
         include:
-          - host: ubuntu-latest
-            target: x86_64
+          # ── Windows ──
           - host: windows-latest
-            target: x64
+            target: x86_64-pc-windows-msvc
+            node-file: dicelet.win32-x64-msvc.node
+            pkg: dicelet-win32-x64-msvc
+            os-constraint: win32
+            cpu-constraint: x64
+
+          # ── Linux x64 gnu ──
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            node-file: dicelet.linux-x64-gnu.node
+            pkg: dicelet-linux-x64-gnu
+            os-constraint: linux
+            cpu-constraint: x64
+            libc: gnu
+
+          # ── Linux x64 musl ──
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            node-file: dicelet.linux-x64-musl.node
+            pkg: dicelet-linux-x64-musl
+            os-constraint: linux
+            cpu-constraint: x64
+            libc: musl
+            setup: sudo apt-get update && sudo apt-get install -y musl-tools
+
+          # ── Linux ARM64 gnu ──
+          - host: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            node-file: dicelet.linux-arm64-gnu.node
+            pkg: dicelet-linux-arm64-gnu
+            os-constraint: linux
+            cpu-constraint: arm64
+            libc: gnu
+            setup: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
     runs-on: ${{ matrix.host }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        if: matrix.setup != ''
+        run: ${{ matrix.setup }}
+        shell: bash
+
       - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          targets: ${{ matrix.target }}
 
-      - name: Install maturin
-        run: pip install maturin
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
 
-      - name: Build wheel
-        working-directory: crates/dicelet-python
-        run: maturin build --release --out dist
+      - name: Install npm dependencies
+        working-directory: crates/dicelet-napi
+        run: npm install
 
-      - name: Upload wheel
+      - name: Build native module
+        working-directory: crates/dicelet-napi
+        run: |
+          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
+            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+          fi
+          if [ "${{ matrix.target }}" = "x86_64-unknown-linux-musl" ]; then
+            export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc
+            export CC_x86_64_unknown_linux_musl=musl-gcc
+          fi
+          npx napi build --platform --release --target ${{ matrix.target }}
+        shell: bash
+
+      - name: Smoke test (native platform only)
+        if: matrix.target == 'x86_64-pc-windows-msvc' || matrix.target == 'x86_64-unknown-linux-gnu'
+        working-directory: crates/dicelet-napi
+        run: node test.js
+
+      - name: Upload platform artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pypi-wheel-${{ matrix.host }}-${{ matrix.target }}
-          path: crates/dicelet-python/dist
+          name: ${{ matrix.pkg }}
+          path: crates/dicelet-napi/${{ matrix.node-file }}
+          if-no-files-found: error
 
-  # ── Python (PyO3) build Linux ARM64 wheel (manylinux via QEMU) ───
-  pypi-wheel-linux-arm64:
-    needs: test-core
+  # ── Publish npm: main package + all platform sub-packages ────────
+  publish-npm:
+    needs: [version-check, build-npm]
+    if: needs.version-check.outputs.published != 'true'
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-      - name: Build wheel in manylinux ARM64 container
-        run: |
-          docker run --rm -v $PWD:/io \
-            quay.io/pypa/manylinux_2_28_aarch64 \
-            bash -c "
-              curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-              source \$HOME/.cargo/env
-              cd /io/crates/dicelet-python
-              /opt/python/cp312-cp312/bin/pip install maturin
-              /opt/python/cp312-cp312/bin/maturin build --release --out dist
-            "
 
-      - name: Upload wheel
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Download all platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: dicelet-*
+          path: crates/dicelet-napi/
+          merge-multiple: true
+
+      - name: List downloaded artifacts
+        run: ls -la crates/dicelet-napi/
+        shell: bash
+
+      - name: Publish platform-specific sub-packages
+        working-directory: crates/dicelet-napi
+        run: |
+          set -e
+          VER=$(node -p "require('./package.json').version")
+          echo "Publishing platform sub-packages for v$VER..."
+
+          # Define platform metadata for each node file
+          # Format: node_file|os|cpu|libc(optional)
+          PLATFORMS=(
+            "dicelet.win32-x64-msvc.node|win32|x64|"
+            "dicelet.linux-x64-gnu.node|linux|x64|gnu"
+            "dicelet.linux-x64-musl.node|linux|x64|musl"
+            "dicelet.linux-arm64-gnu.node|linux|arm64|gnu"
+          )
+
+          for entry in "${PLATFORMS[@]}"; do
+            IFS='|' read -r node_file os cpu libc <<< "$entry"
+
+            if [ ! -f "$node_file" ]; then
+              echo "::warning::Skipping $node_file (file not found)"
+              continue
+            fi
+
+            # Extract suffix from filename: dicelet.win32-x64-msvc.node -> win32-x64-msvc
+            suffix=$(echo "$node_file" | sed 's/dicelet\.\(.*\)\.node/\1/')
+            pkg_name="dicelet-$suffix"
+
+            echo ""
+            echo "=== Publishing $pkg_name@$VER ==="
+
+            # Create sub-package directory
+            mkdir -p "publish/$pkg_name"
+            cp "$node_file" "publish/$pkg_name/"
+
+            # Generate package.json for sub-package
+            if [ -n "$libc" ]; then
+              LIBC_JSON=", \"libc\": [\"$libc\"]"
+            else
+              LIBC_JSON=""
+            fi
+
+            cat > "publish/$pkg_name/package.json" << EOF
+          {
+            "name": "$pkg_name",
+            "version": "$VER",
+            "main": "$node_file",
+            "files": ["$node_file"],
+            "os": ["$os"],
+            "cpu": ["$cpu"]$LIBC_JSON,
+            "license": "MIT",
+            "repository": {
+              "type": "git",
+              "url": "https://github.com/dynilath/dicelet.git"
+            },
+            "publishConfig": {
+              "access": "public"
+            }
+          }
+          EOF
+
+            # Publish sub-package
+            cd "publish/$pkg_name"
+            npm publish --provenance --access public
+            cd ../..
+            echo "Published $pkg_name@$VER"
+          done
+        shell: bash
+
+      - name: Sync optionalDependencies versions
+        working-directory: crates/dicelet-napi
+        run: |
+          VER=$(node -p "require('./package.json').version")
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            const deps = pkg.optionalDependencies || {};
+            const platforms = [
+              'dicelet-win32-x64-msvc',
+              'dicelet-linux-x64-gnu',
+              'dicelet-linux-x64-musl',
+              'dicelet-linux-arm64-gnu'
+            ];
+            for (const p of platforms) {
+              deps[p] = '$VER';
+            }
+            // Remove platforms we no longer support
+            delete deps['dicelet-win32-arm64-msvc'];
+            delete deps['dicelet-linux-arm64-musl'];
+            pkg.optionalDependencies = deps;
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+            console.log('Synced optionalDependencies to v$VER');
+          "
+        shell: bash
+
+      - name: Publish main package to npm
+        working-directory: crates/dicelet-napi
+        run: npm publish --provenance --access public
+
+  # ── Python (PyO3) build wheels on all platforms via cibuildwheel ─
+  pypi-wheels:
+    needs: test-core
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up QEMU for Linux aarch64 emulation
+        if: runner.os == 'Linux'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2
+        with:
+          package-dir: crates/dicelet-python
+        env:
+          CIBW_ARCHS_LINUX: x86_64 aarch64
+          CIBW_ARCHS_MACOS: auto
+          CIBW_ARCHS_WINDOWS: AMD64
+          CIBW_BEFORE_ALL_LINUX: >
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
+          CIBW_ENVIRONMENT_LINUX: 'PATH="$HOME/.cargo/bin:$PATH"'
+
+      - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: pypi-wheel-linux-arm64
-          path: crates/dicelet-python/dist
+          name: pypi-wheels-${{ matrix.os }}
+          path: crates/dicelet-python/wheelhouse/*.whl
 
   # ── Python (PyO3) build sdist ─────────────────────────────────────
   pypi-sdist:
@@ -178,7 +338,7 @@ jobs:
 
   # ── Publish to PyPI ───────────────────────────────────────────────
   pypi-publish:
-    needs: [pypi-wheels, pypi-sdist, pypi-wheel-linux-arm64]
+    needs: [pypi-wheels, pypi-sdist]
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -196,9 +356,41 @@ jobs:
           packages-dir: dist
           skip-existing: true
 
+  # ── Create GitHub Release ─────────────────────────────────────────
+  github-release:
+    needs: [auto-tag]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          VER=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          echo "version=$VER" >> $GITHUB_OUTPUT
+
+      - name: Download npm artifacts for release assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: dicelet-*
+          path: release-assets/
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
+          files: release-assets/*.node
+          generate_release_notes: true
+          fail_on_unmatched_files: false
+
   # ── Auto tag (only after all publishes succeed) ──────────────────
   auto-tag:
     needs: [publish-npm, pypi-publish]
+    if: needs.version-check.outputs.published != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -213,5 +405,5 @@ jobs:
           else
             git tag "$TAG"
             git push origin "$TAG"
-            echo "✅ Created and pushed tag: $TAG"
+            echo "Created and pushed tag: $TAG"
           fi
