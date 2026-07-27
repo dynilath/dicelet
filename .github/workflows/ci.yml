@@ -65,6 +65,7 @@ jobs:
         working-directory: crates/dicelet-napi
         run: |
           if [ "${{ matrix.settings.cross }}" = "true" ]; then
+            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
             npx napi build --platform --release --target ${{ matrix.settings.target }}
           else
             npx napi build --platform --release
