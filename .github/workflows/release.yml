@@ -226,12 +226,16 @@ jobs:
           EOF
 
             # Publish sub-package
+            # Copy .npmrc for auth since we're in a freshly created directory
+            cp ../../.npmrc "publish/$pkg_name/" 2>/dev/null || true
             cd "publish/$pkg_name"
-            npm publish --provenance --access public
+            npm publish --access public --registry https://registry.npmjs.org
             cd ../..
             echo "Published $pkg_name@$VER"
           done
         shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Sync optionalDependencies versions
         working-directory: crates/dicelet-napi
@@ -284,7 +288,7 @@ jobs:
           cibuildwheel --output-dir wheelhouse
         working-directory: crates/dicelet-python
         env:
-          CIBW_BUILD: "cp38-* cp39-* cp310-* cp311-* cp312-* cp313-*"
+          CIBW_BUILD: "cp311-* cp312-* cp313-*"
           CIBW_SKIP: "*-musllinux_* pp* *_i686"
           CIBW_ARCHS_LINUX: x86_64 aarch64
           CIBW_ARCHS_WINDOWS: AMD64
