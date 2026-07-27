@@ -239,37 +239,6 @@ jobs:
           packages-dir: dist
           skip-existing: true
 
-  # ── Create GitHub Release ─────────────────────────────────────────
-  github-release:
-    needs: [auto-tag]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Get version
-        id: version
-        run: |
-          VER=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
-          echo "version=$VER" >> $GITHUB_OUTPUT
-
-      - name: Download npm artifacts for release assets
-        uses: actions/download-artifact@v4
-        with:
-          pattern: dicelet.*
-          path: release-assets/
-          merge-multiple: true
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: v${{ steps.version.outputs.version }}
-          files: release-assets/*.node
-          generate_release_notes: true
-          fail_on_unmatched_files: false
-
   # ── Auto tag (only after all publishes succeed) ──────────────────
   auto-tag:
     needs: [publish-npm, pypi-publish]
