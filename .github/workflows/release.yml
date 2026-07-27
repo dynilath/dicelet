@@ -118,12 +118,12 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          packages-dir: crates/dicelet-python/target/wheels
+          packages-dir: target/wheels
           skip-existing: true
 
   # ── Auto tag (only after all publishes succeed) ──────────────────
   auto-tag:
-    needs: publish-pypi
+    needs: [publish-npm, publish-pypi]
     runs-on: ubuntu-latest
     permissions:
       contents: write
