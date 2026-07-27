@@ -13,4 +13,4 @@ crate-type = ["cdylib"]
 
 [dependencies]
 dicelet-core = { path = "../dicelet-core" }
-pyo3 = { version = "0.23", features = ["extension-module"] }
+pyo3 = { version = "0.23", features = ["extension-module", "abi3-py311"] }
