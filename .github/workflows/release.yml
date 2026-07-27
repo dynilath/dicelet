@@ -95,12 +95,22 @@ jobs:
         working-directory: crates/dicelet-napi
         run: npm publish
 
-  # ── Python (PyO3) build & publish ────────────────────────────────
-  publish-pypi:
+  # ── Python (PyO3) build wheels (per platform) ────────────────────
+  pypi-wheels:
     needs: test-core
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write   # Required for PyPI Trusted Publishers (OIDC)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - host: ubuntu-latest
+            target: x86_64
+          - host: windows-latest
+            target: x64
+          - host: macos-13
+            target: x86_64
+          - host: macos-latest
+            target: aarch64
+    runs-on: ${{ matrix.host }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -111,19 +121,62 @@ jobs:
       - name: Install maturin
         run: pip install maturin
 
-      - name: Build wheels
+      - name: Build wheel
         working-directory: crates/dicelet-python
-        run: maturin build --release
+        run: maturin build --release --out dist
+
+      - name: Upload wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: pypi-wheel-${{ matrix.host }}-${{ matrix.target }}
+          path: crates/dicelet-python/dist
+
+  # ── Python (PyO3) build sdist ─────────────────────────────────────
+  pypi-sdist:
+    needs: test-core
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install maturin
+        run: pip install maturin
+
+      - name: Build sdist
+        working-directory: crates/dicelet-python
+        run: maturin build --release --sdist --out dist
+
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: pypi-sdist
+          path: crates/dicelet-python/dist
+
+  # ── Publish to PyPI ───────────────────────────────────────────────
+  pypi-publish:
+    needs: [pypi-wheels, pypi-sdist]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: pypi-*
+          path: dist
+          merge-multiple: true
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          packages-dir: target/wheels
+          packages-dir: dist
           skip-existing: true
 
   # ── Auto tag (only after all publishes succeed) ──────────────────
   auto-tag:
-    needs: [publish-npm, publish-pypi]
+    needs: [publish-npm, pypi-publish]
     runs-on: ubuntu-latest
     permissions:
       contents: write
