@@ -225,17 +225,13 @@ jobs:
           }
           EOF
 
-            # Publish sub-package
-            # Copy .npmrc for auth since we're in a freshly created directory
-            cp ../../.npmrc "publish/$pkg_name/" 2>/dev/null || true
+            # Publish sub-package (OIDC handles auth via setup-node + id-token: write)
             cd "publish/$pkg_name"
-            npm publish --access public --registry https://registry.npmjs.org
+            npm publish --access public
             cd ../..
             echo "Published $pkg_name@$VER"
           done
         shell: bash
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Sync optionalDependencies versions
         working-directory: crates/dicelet-napi
