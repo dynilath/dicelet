@@ -1,6 +1,6 @@
 {
   "name": "dicelet",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Dicelet dice expression parsing and evaluation engine",
   "main": "index.js",
   "types": "index.d.ts",
