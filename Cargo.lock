@@ -83,14 +83,14 @@ dependencies = [
 
 [[package]]
 name = "dicelet-core"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "dicelet-napi"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "dicelet-core",
  "napi",
@@ -100,7 +100,7 @@ dependencies = [
 
 [[package]]
 name = "dicelet-python"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "dicelet-core",
  "pyo3",
@@ -108,7 +108,7 @@ dependencies = [
 
 [[package]]
 name = "dicelet-wasm"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "dicelet-core",
  "js-sys",
