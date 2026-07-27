@@ -134,6 +134,7 @@ jobs:
         working-directory: crates/dicelet-python
         run: |
           if [ -n "${{ matrix.rust-target }}" ]; then
+            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
             maturin build --release --target ${{ matrix.rust-target }} --out dist
           else
             maturin build --release --out dist
