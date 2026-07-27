@@ -88,13 +88,22 @@ jobs:
       - name: Install maturin
         run: pip install maturin pytest
 
+      - name: Create virtualenv
+        working-directory: crates/dicelet-python
+        run: python -m venv .venv
+
       - name: Build and install (dev)
         working-directory: crates/dicelet-python
-        run: maturin develop
+        run: |
+          . .venv/bin/activate
+          pip install maturin pytest
+          maturin develop
 
       - name: Run tests
         working-directory: crates/dicelet-python
-        run: python -m pytest tests/ -v
+        run: |
+          . .venv/bin/activate
+          python -m pytest tests/ -v
 
   # ── Build WASM + test ────────────────────────────────────────────
   build-wasm:
