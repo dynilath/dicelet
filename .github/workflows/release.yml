@@ -78,7 +78,20 @@ jobs:
         working-directory: crates/dicelet-napi
         run: npx napi prepublish -t npm
 
+      - name: Check if version already published
+        working-directory: crates/dicelet-napi
+        run: |
+          PKG_VER=$(node -p "require('./package.json').version")
+          if npm view dicelet@"$PKG_VER" version >/dev/null 2>&1; then
+            echo "Version $PKG_VER already published, skipping."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+        id: check
+
       - name: Publish to npm
+        if: steps.check.outputs.skip != 'true'
         working-directory: crates/dicelet-napi
         run: npm publish
 
@@ -127,6 +140,7 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist
+          skip-existing: true
 
   # ── Auto tag (only after all publishes succeed) ──────────────────
   auto-tag:
