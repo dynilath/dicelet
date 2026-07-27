@@ -1,9 +1,9 @@
 [workspace]
-members = ["crates/dicelet-core", "crates/dicelet-napi", "crates/dicelet-wasm"]
+members = ["crates/dicelet-core", "crates/dicelet-napi", "crates/dicelet-wasm", "crates/dicelet-python"]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 authors = ["dynilath <dynilath@qq.com>"]

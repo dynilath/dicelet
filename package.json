@@ -1,6 +1,6 @@
 {
   "name": "dicelet",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Dicelet dice expression parsing and evaluation engine",
   "main": "index.js",
   "types": "index.d.ts",
@@ -54,13 +54,13 @@
     "@napi-rs/cli": "^2.18.0"
   },
   "optionalDependencies": {
-    "dicelet-win32-x64-msvc": "0.1.0",
-    "dicelet-darwin-x64": "0.1.0",
-    "dicelet-linux-x64-gnu": "0.1.0",
-    "dicelet-darwin-arm64": "0.1.0",
-    "dicelet-win32-arm64-msvc": "0.1.0",
-    "dicelet-linux-arm64-gnu": "0.1.0",
-    "dicelet-linux-arm64-musl": "0.1.0",
-    "dicelet-linux-x64-musl": "0.1.0"
+    "dicelet-win32-x64-msvc": "0.2.0",
+    "dicelet-darwin-x64": "0.2.0",
+    "dicelet-linux-x64-gnu": "0.2.0",
+    "dicelet-darwin-arm64": "0.2.0",
+    "dicelet-win32-arm64-msvc": "0.2.0",
+    "dicelet-linux-arm64-gnu": "0.2.0",
+    "dicelet-linux-arm64-musl": "0.2.0",
+    "dicelet-linux-x64-musl": "0.2.0"
   }
 }

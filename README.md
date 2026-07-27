@@ -1,20 +1,21 @@
-# dice-rs
+# dicelet
 
-Dicelet 骰子表达式解析与求值引擎，使用 Rust 实现并通过 napi-rs 提供 Node.js / npm 接口，同时支持 WASM 用于浏览器环境。
+Dicelet dice expression parsing and evaluation engine, implemented in Rust with napi-rs for Node.js/npm, WASM for browser environments, and Python bindings via PyO3.
 
-本项目是 [qq-dicebot](https://github.com/dynilath/qq-dicebot) 中 dicelet 语法引擎的重新实现，聚焦于骰子表达式的解析与求值，支持 strtol 式容错解析。
+This project is a reimplementation of the dicelet syntax engine from [qq-dicebot](https://github.com/dynilath/qq-dicebot), focused on dice expression parsing and evaluation with strtol-style fault-tolerant parsing.
 
-## 特性
+## Features
 
-- 🎲 **完整的 dicelet 语法**：基础骰子、取高/取低（k/kl）、算式运算、百分数
-- 📦 **多结果集合**：`#` 重复、`{}` 集合、集合间运算
-- 🔧 **容错解析**：类似 `strtol` 的回退机制，从无效输入中提取有效部分
-- ⚡ **高性能**：Rust 实现，xoroshiro128\*\* 随机数生成器
-- 📦 **多平台支持**：
-  - **Node.js**：通过 napi-rs 提供原生绑定，预编译多平台分发
-  - **浏览器**：通过 WASM 支持，可在浏览器中直接使用
+- 🎲 **Full dicelet syntax**: basic dice, keep-highest/keep-lowest (k/kl), arithmetic, percentages
+- 📦 **Multi-result sets**: `#` repetition, `{}` sets, inter-set operations
+- 🔧 **Fault-tolerant parsing**: strtol-like recovery, extracting valid parts from invalid input
+- ⚡ **High performance**: Rust implementation, xoroshiro128** RNG
+- 📦 **Multi-platform support**:
+  - **Node.js**: native bindings via napi-rs, prebuilt multi-platform distribution
+  - **Browser**: WASM support for direct browser usage
+  - **Python**: native bindings via PyO3, published on PyPI
 
-## 安装
+## Installation
 
 ### Node.js
 
@@ -22,179 +23,233 @@ Dicelet 骰子表达式解析与求值引擎，使用 Rust 实现并通过 napi-
 npm install dicelet
 ```
 
-### 浏览器 (WASM)
+### Python
 
 ```bash
-# 从源码构建 WASM 包
+pip install dicelet
+```
+
+### Browser (WASM)
+
+```bash
+# Build WASM package from source
 cd crates/dicelet-wasm
 wasm-pack build --target web --release --out-dir pkg
 ```
 
-## 快速开始
+## Quick Start
 
 ### Node.js
 
 ```typescript
 import { roll, parse } from 'dicelet';
 
-// 基础骰子
+// Basic dice
 const result = roll('4d6k3');
 console.log(result.full);
-// 输出: [5 + 3 + 1* + 6] = 14
+// Output: [5 + 3 + 1* + 6] = 14
 
-// 复杂算式
+// Complex expression
 const complex = roll('(((4d6+3)/2+2d20)+4*1d6)*150%');
 console.log(complex.full);
 
-// 多结果集合
+// Multi-result sets
 const set = roll('6#4d6k3');
 console.log(set.full);
 console.log(set.isSet); // true
 
-// 容错解析
-const recovered = roll('d20 + (d4+ 测试');
+// Fault-tolerant parsing
+const recovered = roll('d20 + (d4+ test');
 console.log(recovered.consumed); // "d20"
-console.log(recovered.tail);     // "+ (d4+ 测试"
+console.log(recovered.tail);     // "+ (d4+ test"
 
-// 仅解析不投掷
-const parsed = parse('d20 + (d4+ 测试');
+// Parse only (no rolling)
+const parsed = parse('d20 + (d4+ test');
 console.log(parsed.success);  // true
 
-// 关闭详细输出
+// Disable verbose output
 const noDetail = roll('4d6', { showDetail: false });
 console.log(noDetail.full);   // "14"
 ```
 
-### 浏览器 (WASM)
+### Python
+
+```python
+import dicelet
+
+# Basic dice
+result = dicelet.roll("4d6k3")
+print(result.full)
+# Output: [5 + 3 + 1* + 6] = 14
+
+# Complex expression
+complex_result = dicelet.roll("(((4d6+3)/2+2d20)+4*1d6)*150%")
+print(complex_result.full)
+
+# Multi-result sets
+set_result = dicelet.roll("6#4d6k3")
+print(set_result.full)
+print(set_result.is_set)  # True
+
+# Fault-tolerant parsing
+recovered = dicelet.roll("d20 + (d4+ test")
+print(recovered.consumed)  # "d20"
+print(recovered.tail)      # "+ (d4+ test"
+
+# Parse only (no rolling)
+parsed = dicelet.parse("d20 + (d4+ test")
+print(parsed.success)  # True
+
+# Disable verbose output
+no_detail = dicelet.roll("4d6", show_detail=False)
+print(no_detail.full)  # "14"
+```
+
+### Browser (WASM)
 
 ```html
 <script type="module">
   import init, { roll, parse } from './pkg/dicelet_wasm.js';
 
-  // 初始化 WASM 模块
+  // Initialize WASM module
   await init();
 
-  // 基础骰子
+  // Basic dice
   const result = roll('4d6k3');
   console.log(result.full); // e.g. "[5 + 3 + 1* + 6] = 14"
 
-  // 容错解析
-  const recovered = roll('d20 + (d4+ 测试');
+  // Fault-tolerant parsing
+  const recovered = roll('d20 + (d4+ test');
   console.log(recovered.consumed); // "d20"
-  console.log(recovered.tail);     // "+ (d4+ 测试"
+  console.log(recovered.tail);     // "+ (d4+ test"
 
-  // 仅解析
-  const parsed = parse('d20 + (d4+ 测试');
+  // Parse only
+  const parsed = parse('d20 + (d4+ test');
   console.log(parsed.success); // true
 </script>
 ```
 
 ## API
 
-### `roll(expression: string, options?: Options): RollResult`
+### `roll(expression: string, options?: Options): RollResult` (TS) / `dicelet.roll(expression, **options)` (Python)
 
-解析并求值一个 dicelet 表达式。
+Parse and evaluate a dicelet expression.
 
 **Options:**
 
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `showDetail` | boolean | `true` | 是否显示详细投掷结果 |
-| `seed` | number | - | 随机种子（用于测试） |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `showDetail` / `show_detail` | boolean | `true` | Whether to show detailed roll results |
+| `seed` | number | - | Random seed (for testing) |
 
 **RollResult:**
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `consumed` | string | 成功解析的源码文本 |
-| `tail` | string | 未解析的尾后内容 |
-| `summary` | string | 结果摘要（如 `"14"` 或 `"{10, 11, 13}"`） |
-| `detail` | string | 详细投掷过程（如 `"[5 + 3 + 1* + 6]"`） |
-| `full` | string | 完整输出（如 `"[5 + 3 + 1* + 6] = 14"`） |
-| `isSet` | boolean | 是否为多结果集合 |
-| `values` | number[] | 数值结果数组 |
+| Field | Type | Description |
+|-------|------|-------------|
+| `consumed` | string | Successfully parsed source text |
+| `tail` | string | Unparsed trailing content |
+| `summary` | string | Result summary (e.g. `"14"` or `"{10, 11, 13}"`) |
+| `detail` | string | Detailed roll process (e.g. `"[5 + 3 + 1* + 6]"`) |
+| `full` | string | Full output (e.g. `"[5 + 3 + 1* + 6] = 14"`) |
+| `isSet` / `is_set` | boolean | Whether this is a multi-result set |
+| `values` | number[] | Array of numeric results |
 
-### `parse(expression: string): ParseOutput`
+### `parse(expression: string): ParseOutput` (TS) / `dicelet.parse(expression)` (Python)
 
-仅解析表达式，不进行投掷。
+Parse an expression without rolling.
 
 **ParseOutput:**
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `success` | boolean | 是否成功解析 |
-| `consumed` | string | 成功解析的源码文本 |
-| `tail` | string | 未解析的尾后内容 |
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Whether parsing succeeded |
+| `consumed` | string | Successfully parsed source text |
+| `tail` | string | Unparsed trailing content |
 
-## 语法文档
+## Syntax Documentation
 
-完整的 dicelet 语法规范请参考 [docs/dicelet-syntax.md](./docs/dicelet-syntax.md)。
+See [docs/dicelet-syntax.md](./docs/dicelet-syntax.md) for the complete dicelet syntax specification.
 
-## 构建
+## Building
 
-### 前置要求
+### Prerequisites
 
-- Rust 工具链（stable）
+- Rust toolchain (stable)
 - Node.js >= 10
+- Python >= 3.8
 - npm
 
-### 从源码构建
+### Build from source
 
 ```bash
-# 克隆仓库
-git clone https://github.com/dynilath/dice-rs.git
-cd dice-rs
+# Clone the repository
+git clone https://github.com/dynilath/dicelet.git
+cd dicelet
 
-# 构建 Node.js native 模块
+# Build Node.js native module
 cd crates/dicelet-napi
 npm install
 npx napi build --platform --release
 
-# 构建 WASM 模块（需要 wasm-pack）
+# Build WASM module (requires wasm-pack)
 cd ../dicelet-wasm
 wasm-pack build --target web --release --out-dir pkg
+
+# Build Python module (requires maturin)
+cd ../dicelet-python
+pip install maturin
+maturin develop --release
 ```
 
-### 运行测试
+### Run tests
 
 ```bash
-# Rust 核心引擎测试
+# Rust core engine tests
 cargo test --package dicelet-core
 
-# Node.js 接口测试
+# Node.js bindings tests
 cd crates/dicelet-napi
 node test.js
+
+# Python bindings tests
+cd crates/dicelet-python
+python -m pytest
 ```
 
-## 项目结构
+## Project Structure
 
 ```
-dice-rs/
+dicelet/
 ├── crates/
-│   ├── dicelet-core/          # 核心引擎（纯 Rust，无平台依赖）
+│   ├── dicelet-core/          # Core engine (pure Rust, no platform deps)
 │   │   └── src/
-│   │       ├── lib.rs          # 入口，导出 roll() / parse()
-│   │       ├── number.rs       # Number 类型（整数/小数/百分数）
-│   │       ├── rng.rs          # xoroshiro128** 随机数生成器
-│   │       ├── lexer/          # 词法分析
+│   │       ├── lib.rs          # Entry point, exports roll() / parse()
+│   │       ├── number.rs       # Number type (int/decimal/percent)
+│   │       ├── rng.rs          # xoroshiro128** RNG
+│   │       ├── lexer/          # Lexical analysis
 │   │       │   ├── mod.rs      # Tokenizer
-│   │       │   ├── scanner.rs  # 预扫描（括号匹配截断）
-│   │       │   └── token.rs    # Token 类型定义
-│   │       ├── parser/         # 语法分析
-│   │       │   ├── mod.rs      # 递归下降解析器
-│   │       │   └── ast.rs      # AST 节点定义
-│   │       ├── eval.rs         # 求值器
-│   │       ├── roll.rs         # 骰子滚动
-│   │       ├── error.rs        # 错误类型
-│   │       └── constants.rs    # 常量
-│   ├── dicelet-napi/          # napi-rs Node.js 绑定
+│   │       │   ├── scanner.rs  # Pre-scan (parenthesis matching cutoff)
+│   │       │   └── token.rs    # Token type definitions
+│   │       ├── parser/         # Syntax analysis
+│   │       │   ├── mod.rs      # Recursive descent parser
+│   │       │   └── ast.rs      # AST node definitions
+│   │       ├── eval.rs         # Evaluator
+│   │       ├── roll.rs         # Dice rolling
+│   │       ├── error.rs        # Error types
+│   │       └── constants.rs    # Constants
+│   ├── dicelet-napi/          # napi-rs Node.js bindings
 │   │   └── src/lib.rs
-│   └── dicelet-wasm/          # WASM 浏览器绑定
+│   ├── dicelet-wasm/          # WASM browser bindings
+│   │   └── src/lib.rs
+│   └── dicelet-python/        # PyO3 Python bindings
+│       ├── pyproject.toml
 │       └── src/lib.rs
 ├── docs/
-│   └── dicelet-syntax.md      # 语法文档
+│   └── dicelet-syntax.md      # Syntax documentation
 ├── Cargo.toml                 # Rust workspace
-└── package.json               # npm 包定义
+├── README.md                  # English README
+├── README_zh.md               # Chinese README
+└── package.json               # npm package definition
 ```
 
 ## License

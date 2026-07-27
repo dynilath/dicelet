@@ -1,0 +1,125 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - release
+
+jobs:
+  # ── Version consistency check ────────────────────────────────────
+  version-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check version consistency across all packages
+        run: |
+          # Extract Cargo.toml workspace version (source of truth)
+          CARGO_VER=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+
+          # Extract npm versions
+          ROOT_NPM_VER=$(python3 -c "import json; print(json.load(open('package.json'))['version'])")
+          NAPI_NPM_VER=$(python3 -c "import json; print(json.load(open('crates/dicelet-napi/package.json'))['version'])")
+
+          echo "Cargo.toml (source of truth):  $CARGO_VER"
+          echo "package.json (npm):           $ROOT_NPM_VER"
+          echo "napi package.json:            $NAPI_NPM_VER"
+          echo "pyproject.toml:               dynamic → reads from Cargo.toml"
+
+          fail=0
+          if [ "$CARGO_VER" != "$ROOT_NPM_VER" ]; then
+            echo "::error::Cargo.toml version ($CARGO_VER) != root package.json ($ROOT_NPM_VER)"
+            fail=1
+          fi
+          if [ "$CARGO_VER" != "$NAPI_NPM_VER" ]; then
+            echo "::error::Cargo.toml version ($CARGO_VER) != napi package.json ($NAPI_NPM_VER)"
+            fail=1
+          fi
+          if [ "$fail" -eq 1 ]; then
+            echo "::error::Version mismatch! Update all to match Cargo.toml [workspace.package].version"
+            exit 1
+          fi
+          echo "✅ All versions match: $CARGO_VER"
+
+  # ── Rust core tests ──────────────────────────────────────────────
+  test-core:
+    needs: version-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --package dicelet-core
+
+  # ── Node.js (napi-rs) build & publish ────────────────────────────
+  publish-npm:
+    needs: test-core
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # Required for npm Trusted Publishers (OIDC)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Install napi-cli
+        run: npm install -g @napi-rs/cli
+
+      - name: Install npm dependencies
+        working-directory: crates/dicelet-napi
+        run: npm install
+
+      - name: Build napi artifacts
+        working-directory: crates/dicelet-napi
+        run: npx napi prepublish -t npm
+
+      - name: Publish to npm
+        working-directory: crates/dicelet-napi
+        run: npm publish
+
+  # ── Python (PyO3) build & publish ────────────────────────────────
+  publish-pypi:
+    needs: test-core
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [x86_64, i686, aarch64, armv7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install maturin
+        run: pip install maturin
+
+      - name: Build wheels
+        working-directory: crates/dicelet-python
+        run: maturin build --release --out dist
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: pypi-wheels-${{ matrix.target }}
+          path: crates/dicelet-python/dist
+
+  # ── Publish to PyPI (aggregates all wheels + sdist) ──────────────
+  publish-pypi-upload:
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # Required for PyPI Trusted Publishers (OIDC)
+    steps:
+      - name: Download all wheels
+        uses: actions/download-artifact@v4
+        with:
+          pattern: pypi-wheels-*
+          path: dist
+          merge-multiple: true
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist

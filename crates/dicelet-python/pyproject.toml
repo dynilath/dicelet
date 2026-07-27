@@ -1,0 +1,35 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "dicelet"
+dynamic = ["version"]
+description = "Dicelet dice expression parsing and evaluation engine"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "dynilath", email = "dynilath@qq.com" }]
+keywords = ["dice", "dicelet", "trpg", "roll"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Rust",
+    "Topic :: Games/Entertainment :: Role-Playing",
+]
+requires-python = ">=3.8"
+
+[project.urls]
+Repository = "https://github.com/dynilath/dicelet"
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+python-source = "python"
+module-name = "dicelet"
